@@ -54,12 +54,13 @@
 //! [`AddrFilter`]: iroh::address_lookup::AddrFilter
 //! [`RelayUrl`]: iroh_base::RelayUrl
 use std::{
-    collections::{BTreeSet, HashMap},
-    net::{IpAddr, SocketAddr},
+    collections::{BTreeSet, HashMap, HashSet},
+    net::{IpAddr, Ipv4Addr, SocketAddr},
     str::FromStr,
     sync::Arc,
 };
 
+use if_addrs::get_if_addrs;
 use iroh::{
     Endpoint,
     address_lookup::{
@@ -75,7 +76,8 @@ use n0_future::{
     time::{self, Duration},
 };
 use n0_watcher::{Watchable, Watcher as _};
-use swarm_discovery::{Discoverer, DropGuard, IpClass, Peer};
+use netwatch::netmon;
+use swarm_discovery::{Discoverer, DropGuard, Peer};
 use tokio::sync::mpsc::{self, error::TrySendError};
 use tracing::{Instrument, debug, error, info_span, trace, warn};
 
@@ -103,6 +105,8 @@ const RELAY_URL_ATTRIBUTE: &str = "relay";
 pub struct MdnsAddressLookup {
     #[allow(dead_code)]
     handle: Arc<AbortOnDropHandle<()>>,
+    #[allow(dead_code)]
+    iface_monitor: Arc<AbortOnDropHandle<()>>,
     sender: mpsc::Sender<Message>,
     advertise: bool,
     /// When `local_addrs` changes, we re-publish our info.
@@ -118,6 +122,8 @@ enum Message {
     ),
     Timeout(EndpointId, usize),
     Subscribe(mpsc::Sender<DiscoveryEvent>),
+    AddMulticastInterface(Ipv4Addr),
+    RemoveMulticastInterface(Ipv4Addr),
 }
 
 /// Manages the list of subscribers that are subscribed to this Address Lookup.
@@ -276,7 +282,7 @@ impl MdnsAddressLookup {
         let (send, mut recv) = mpsc::channel(64);
         let task_sender = send.clone();
         let rt = tokio::runtime::Handle::current();
-        let address_lookup = MdnsAddressLookup::spawn_discoverer(
+        let (address_lookup, iface_monitor) = MdnsAddressLookup::spawn_discoverer(
             endpoint_id,
             advertise,
             task_sender.clone(),
@@ -312,6 +318,8 @@ impl MdnsAddressLookup {
 
                         let addrs =
                             MdnsAddressLookup::socketaddrs_to_addrs(data.ip_addrs());
+                        let addrs: Vec<_> = addrs.into_iter().collect();
+                        debug!(?addrs, "Mdns advertising addresses");
                         for addr in addrs {
                             address_lookup.add(addr.0, addr.1)
                         }
@@ -445,6 +453,12 @@ impl MdnsAddressLookup {
                         trace!("Mdns Message::Subscribe");
                         subscribers.push(subscriber);
                     }
+                    Message::AddMulticastInterface(ip) => {
+                        address_lookup.add_interface_v4(ip);
+                    }
+                    Message::RemoveMulticastInterface(ip) => {
+                        address_lookup.remove_interface_v4(ip);
+                    }
                 }
             }
         };
@@ -452,6 +466,7 @@ impl MdnsAddressLookup {
             task::spawn(address_lookup_fut.instrument(info_span!("swarm-discovery.actor")));
         Ok(Self {
             handle: Arc::new(AbortOnDropHandle::new(handle)),
+            iface_monitor: Arc::new(iface_monitor),
             sender: send,
             advertise,
             local_addrs,
@@ -476,36 +491,107 @@ impl MdnsAddressLookup {
         socketaddrs: BTreeSet<SocketAddr>,
         service_name: String,
         rt: &tokio::runtime::Handle,
-    ) -> Result<DropGuard, AddressLookupBuilderError> {
+    ) -> Result<(DropGuard, AbortOnDropHandle<()>), AddressLookupBuilderError> {
         let spawn_rt = rt.clone();
-        let callback = move |endpoint_id: &str, peer: &Peer| {
-            trace!(endpoint_id, ?peer, "Received peer information from Mdns");
-
-            let sender = sender.clone();
-            let endpoint_id = endpoint_id.to_string();
-            let peer = peer.clone();
-            spawn_rt.spawn(async move {
-                sender
-                    .send(Message::Discovered(endpoint_id, peer))
-                    .await
-                    .ok();
-            });
-        };
+        let msg_sender = sender.clone();
         let endpoint_id_str = data_encoding::BASE32_NOPAD
             .encode(endpoint_id.as_bytes())
             .to_ascii_lowercase();
+
+        let callback = {
+            let endpoint_id_str = endpoint_id_str.clone();
+            move |peer_id: &str, peer: &Peer| {
+                if peer_id == endpoint_id_str {
+                    return;
+                }
+                trace!(peer_id, ?peer, "Received peer information from Mdns");
+
+                let sender = msg_sender.clone();
+                let peer_id = peer_id.to_string();
+                let peer = peer.clone();
+                spawn_rt.spawn(async move {
+                    sender.send(Message::Discovered(peer_id, peer)).await.ok();
+                });
+            }
+        };
+
+        let initial_ifaces = Self::get_v4_ifaces();
+        debug!(?initial_ifaces, "mdns: known IPv4 multicast interfaces");
+
         let mut discoverer = Discoverer::new_interactive(service_name, endpoint_id_str)
             .with_callback(callback)
-            .with_ip_class(IpClass::Auto);
+            .with_multicast_interfaces_v4(initial_ifaces.iter().copied().collect());
+
         if advertise {
             let addrs = MdnsAddressLookup::socketaddrs_to_addrs(socketaddrs.iter());
             for addr in addrs {
                 discoverer = discoverer.with_addrs(addr.0, addr.1);
             }
         }
-        discoverer
+
+        let guard = discoverer
             .spawn(rt)
-            .map_err(|e| AddressLookupBuilderError::from_err("mdns", e))
+            .map_err(|e| AddressLookupBuilderError::from_err("mdns", e))?;
+
+        let iface_monitor_handle = AbortOnDropHandle::new(rt.spawn(async move {
+            let Ok(monitor) = netmon::Monitor::new().await else {
+                warn!("mdns: failed to create netwatch monitor, multi-interface support disabled");
+                return;
+            };
+            let mut iface_watcher = monitor.interface_state();
+            let mut known: HashSet<Ipv4Addr> = initial_ifaces;
+            while (iface_watcher.updated().await).is_ok() {
+                let current = Self::get_v4_ifaces();
+                for &added in current.difference(&known) {
+                    debug!(%added, "mdns: adding new IPv4 multicast interface");
+                    sender
+                        .send(Message::AddMulticastInterface(added))
+                        .await
+                        .ok();
+                }
+                for &removed in known.difference(&current) {
+                    debug!(%removed, "mdns: removing IPv4 multicast interface");
+                    sender
+                        .send(Message::RemoveMulticastInterface(removed))
+                        .await
+                        .ok();
+                }
+                known = current;
+            }
+        }));
+
+        Ok((guard, iface_monitor_handle))
+    }
+
+    fn get_v4_ifaces() -> HashSet<Ipv4Addr> {
+        let ifaces = get_if_addrs().unwrap_or_default();
+
+        let mut by_name: HashMap<String, Vec<Ipv4Addr>> = HashMap::default();
+        for iface in ifaces {
+            if iface.is_loopback() {
+                continue;
+            }
+            if let IpAddr::V4(v4) = iface.addr.ip() {
+                by_name.entry(iface.name).or_default().push(v4);
+            }
+        }
+
+        by_name
+            .into_values()
+            .filter_map(|addrs| {
+                let non_link_local: Vec<_> = addrs
+                    .iter()
+                    .copied()
+                    .filter(|a| !a.is_link_local())
+                    .collect();
+                if !non_link_local.is_empty() {
+                    Some(non_link_local)
+                } else {
+                    addrs.into_iter().next().map(|a| vec![a])
+                }
+            })
+            .flatten()
+            .collect()
     }
 
     fn socketaddrs_to_addrs<'a>(
@@ -599,7 +685,6 @@ mod tests {
     /// This module's name signals nextest to run test in a single thread (no other concurrent
     /// tests).
     mod run_in_isolation {
-        use iroh::endpoint_info::UserData;
         use iroh_base::{SecretKey, TransportAddr};
         use n0_error::{AnyError as Error, Result, StdResultExt, bail_any};
         use n0_future::StreamExt;
@@ -607,6 +692,7 @@ mod tests {
         use rand::{CryptoRng, RngExt, SeedableRng};
 
         use super::super::*;
+        use iroh::address_lookup::UserData;
 
         #[tokio::test]
         #[traced_test]
