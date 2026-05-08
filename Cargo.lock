@@ -1481,6 +1481,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "if-addrs"
+version = "0.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c0a05c691e1fae256cf7013d99dad472dc52d5543322761f83ec8d47eab40d2b"
+dependencies = [
+ "libc",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
 name = "igd-next"
 version = "0.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1562,14 +1572,67 @@ dependencies = [
  "hickory-resolver",
  "http",
  "ipnet",
- "iroh-base",
- "iroh-dns",
+ "iroh-base 1.0.0-rc.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "iroh-dns 1.0.0-rc.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "iroh-metrics",
- "iroh-relay",
+ "iroh-relay 1.0.0-rc.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "n0-error",
  "n0-future",
  "n0-watcher",
  "netwatch 0.17.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "noq",
+ "noq-proto",
+ "noq-udp",
+ "papaya",
+ "pin-project",
+ "portable-atomic",
+ "portmapper",
+ "rand",
+ "reqwest",
+ "rustc-hash",
+ "rustls",
+ "rustls-pki-types",
+ "rustls-webpki",
+ "serde",
+ "smallvec",
+ "strum",
+ "time",
+ "tokio",
+ "tokio-stream",
+ "tokio-util",
+ "tracing",
+ "url",
+ "wasm-bindgen-futures",
+ "webpki-roots",
+]
+
+[[package]]
+name = "iroh"
+version = "1.0.0-rc.0"
+source = "git+https://github.com/zh522130/iroh.git?rev=173444c79179af1e588ce8ad6f1d8edd678ec8b5#173444c79179af1e588ce8ad6f1d8edd678ec8b5"
+dependencies = [
+ "backon",
+ "blake3",
+ "bytes",
+ "cfg_aliases",
+ "ctutils",
+ "data-encoding",
+ "derive_more",
+ "ed25519-dalek",
+ "futures-util",
+ "getrandom 0.4.2",
+ "hickory-resolver",
+ "http",
+ "if-addrs 0.13.4",
+ "ipnet",
+ "iroh-base 1.0.0-rc.0 (git+https://github.com/zh522130/iroh.git?rev=173444c79179af1e588ce8ad6f1d8edd678ec8b5)",
+ "iroh-dns 1.0.0-rc.0 (git+https://github.com/zh522130/iroh.git?rev=173444c79179af1e588ce8ad6f1d8edd678ec8b5)",
+ "iroh-metrics",
+ "iroh-relay 1.0.0-rc.0 (git+https://github.com/zh522130/iroh.git?rev=173444c79179af1e588ce8ad6f1d8edd678ec8b5)",
+ "n0-error",
+ "n0-future",
+ "n0-watcher",
+ "netwatch 0.17.0 (git+https://github.com/zh522130/net-tools.git?rev=505d0dbe9883e2712a751fddb19f16d63b292542)",
  "noq",
  "noq-proto",
  "noq-udp",
@@ -1619,6 +1682,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "iroh-base"
+version = "1.0.0-rc.0"
+source = "git+https://github.com/zh522130/iroh.git?rev=173444c79179af1e588ce8ad6f1d8edd678ec8b5#173444c79179af1e588ce8ad6f1d8edd678ec8b5"
+dependencies = [
+ "curve25519-dalek",
+ "data-encoding",
+ "data-encoding-macro",
+ "derive_more",
+ "digest",
+ "ed25519-dalek",
+ "getrandom 0.4.2",
+ "n0-error",
+ "rand",
+ "serde",
+ "sha2",
+ "url",
+ "zeroize",
+ "zeroize_derive",
+]
+
+[[package]]
 name = "iroh-dns"
 version = "1.0.0-rc.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1628,7 +1712,30 @@ dependencies = [
  "cfg_aliases",
  "derive_more",
  "hickory-resolver",
- "iroh-base",
+ "iroh-base 1.0.0-rc.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "n0-error",
+ "n0-future",
+ "ndk-context",
+ "rand",
+ "reqwest",
+ "rustls",
+ "simple-dns",
+ "strum",
+ "tokio",
+ "tracing",
+ "url",
+]
+
+[[package]]
+name = "iroh-dns"
+version = "1.0.0-rc.0"
+source = "git+https://github.com/zh522130/iroh.git?rev=173444c79179af1e588ce8ad6f1d8edd678ec8b5#173444c79179af1e588ce8ad6f1d8edd678ec8b5"
+dependencies = [
+ "arc-swap",
+ "cfg_aliases",
+ "derive_more",
+ "hickory-resolver",
+ "iroh-base 1.0.0-rc.0 (git+https://github.com/zh522130/iroh.git?rev=173444c79179af1e588ce8ad6f1d8edd678ec8b5)",
  "n0-error",
  "n0-future",
  "ndk-context",
@@ -1648,9 +1755,9 @@ version = "0.2.0"
 dependencies = [
  "clap",
  "derive_more",
- "iroh",
- "iroh-base",
- "iroh-dns",
+ "iroh 1.0.0-rc.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "iroh-base 1.0.0-rc.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "iroh-dns 1.0.0-rc.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "n0-error",
  "n0-future",
  "n0-mainline",
@@ -1668,9 +1775,9 @@ dependencies = [
  "data-encoding",
  "derive_more",
  "futures-util",
- "if-addrs",
- "iroh",
- "iroh-base",
+ "if-addrs 0.15.0",
+ "iroh 1.0.0-rc.0 (git+https://github.com/zh522130/iroh.git?rev=173444c79179af1e588ce8ad6f1d8edd678ec8b5)",
+ "iroh-base 1.0.0-rc.0 (git+https://github.com/zh522130/iroh.git?rev=173444c79179af1e588ce8ad6f1d8edd678ec8b5)",
  "n0-error",
  "n0-future",
  "n0-tracing-test",
@@ -1729,8 +1836,53 @@ dependencies = [
  "http-body-util",
  "hyper",
  "hyper-util",
- "iroh-base",
- "iroh-dns",
+ "iroh-base 1.0.0-rc.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "iroh-dns 1.0.0-rc.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "iroh-metrics",
+ "lru 0.18.0",
+ "n0-error",
+ "n0-future",
+ "noq",
+ "noq-proto",
+ "num_enum",
+ "pin-project",
+ "postcard",
+ "rand",
+ "reqwest",
+ "rustls",
+ "rustls-pki-types",
+ "serde",
+ "serde_bytes",
+ "strum",
+ "tokio",
+ "tokio-rustls",
+ "tokio-util",
+ "tokio-websockets",
+ "tracing",
+ "url",
+ "vergen-gitcl",
+ "webpki-roots",
+ "ws_stream_wasm",
+]
+
+[[package]]
+name = "iroh-relay"
+version = "1.0.0-rc.0"
+source = "git+https://github.com/zh522130/iroh.git?rev=173444c79179af1e588ce8ad6f1d8edd678ec8b5#173444c79179af1e588ce8ad6f1d8edd678ec8b5"
+dependencies = [
+ "blake3",
+ "bytes",
+ "cfg_aliases",
+ "data-encoding",
+ "derive_more",
+ "getrandom 0.4.2",
+ "hickory-resolver",
+ "http",
+ "http-body-util",
+ "hyper",
+ "hyper-util",
+ "iroh-base 1.0.0-rc.0 (git+https://github.com/zh522130/iroh.git?rev=173444c79179af1e588ce8ad6f1d8edd678ec8b5)",
+ "iroh-dns 1.0.0-rc.0 (git+https://github.com/zh522130/iroh.git?rev=173444c79179af1e588ce8ad6f1d8edd678ec8b5)",
  "iroh-metrics",
  "lru 0.18.0",
  "n0-error",
