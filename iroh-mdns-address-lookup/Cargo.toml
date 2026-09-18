@@ -23,7 +23,7 @@ data-encoding = "2.10"
 derive_more = { version = "2.1", features = ["debug"] }
 futures-util = "0.3"
 if-addrs = "0.15"
-iroh = { git = "https://github.com/zh522130/iroh.git", rev = "a294cf6ffb38652fbf271d1a7d760e8a3d1dc55e" }
+iroh = { git = "https://github.com/zh522130/iroh.git", rev = "a294cf6ffb38652fbf271d1a7d760e8a3d1dc55e", default-features = false }
 iroh-base = { git = "https://github.com/zh522130/iroh.git", rev = "a294cf6ffb38652fbf271d1a7d760e8a3d1dc55e", default-features = false, features = ["key"] }
 n0-error = "1.0.0"
 n0-future = "0.3.2"
